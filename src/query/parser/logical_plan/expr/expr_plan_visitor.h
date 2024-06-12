@@ -3,6 +3,7 @@
 #include "exceptions/exceptions.h"
 
 class ExprPlanLike;
+class ExprPlanBetween;
 
 class ExprPlanColumn;
 class ExprPlanTerm;
@@ -25,4 +26,5 @@ public:
     virtual void visit(ExprPlanLessOrEquals&)    { throw NotImplementedException("visit ExprPlanLessOrEquals"); }
 
     virtual void visit(ExprPlanLike&)            { throw NotImplementedException("visit ExprPlanLike"); }
+    virtual void visit(ExprPlanBetween&)            { throw NotImplementedException("visit ExprPlanBetween"); }
 };

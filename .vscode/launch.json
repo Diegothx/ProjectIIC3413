@@ -5,7 +5,7 @@
             "name": "Test Example",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/tests/test_t3",
+            "program": "${workspaceFolder}/build/Debug/tests/create_db",
             "args": [
             ],
             "cwd": "${workspaceFolder}",
@@ -18,10 +18,11 @@
             "program": "${workspaceFolder}/build/Debug/bin/execute_query",
             "args": [
                 "data/test_example",
-                "data/queries/1.sql"
+                "data/queries/2_1.sql"
             ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Debug Build"
+            "preLaunchTask": "Debug Build",
+            "stopOnEntry": false
         }
     ]
 }

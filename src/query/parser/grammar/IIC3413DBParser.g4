@@ -34,11 +34,14 @@ andExpr: simpleExpr (AND simpleExpr)*;
 
 simpleExpr: comparisonExpr
 |           likeExpr
+|           betweenExpr
 ;
 
 comparisonExpr: columnOrConstant (op=('=='|'!='|'<'|'>'|'<='|'>=') columnOrConstant)?;
 
 likeExpr: column LIKE STRING;
+
+betweenExpr: column BETWEEN constant AND constant;
 
 columnOrConstant: column | constant;
 
@@ -59,6 +62,7 @@ keyword: AND
 |        INTO
 |        INT
 |        LIKE
+|        BETWEEN
 |        LIMIT
 |        OR
 |        SELECT

@@ -285,7 +285,36 @@ std::any QueryPreprocessor::visitLikeExpr(IIC3413DBParser::LikeExprContext* ctx)
 }
 
 
-Value get_value(IIC3413DBParser::ConstantContext* ctx) {
+std::any QueryPreprocessor::visitBetweenExpr(IIC3413DBParser::BetweenExprContext* ctx) {
+    auto col_expr = std::make_unique<ExprPlanColumn>(
+        get_column(ctx->column())
+    );
+
+    if(ctx->constant().size() != 2) {
+        throw QueryException("BETWEEN must have two constants");
+    }
+
+    auto low = std::make_unique<Value>(get_value(ctx->constant(0)));
+    auto high = std::make_unique<Value>(get_value(ctx->constant(1)));
+
+    if (col_expr->column.datatype != low->datatype || col_expr->column.datatype != high->datatype){
+        switch (col_expr->column.datatype) {
+            case DataType::INT:
+                throw QueryException("low and high must be of the same datatype as the column (INT)");
+            case DataType::STR:
+                throw QueryException("low and high must be of the same datatype as the column (STR)");
+        }
+    }
+
+    current_expr = std::make_unique<ExprPlanBetween>(
+        std::move(col_expr),
+        std::move(low),
+        std::move(high)
+    );
+    return 0;
+}
+
+Value QueryPreprocessor::get_value(IIC3413DBParser::ConstantContext* ctx) const {
     if (ctx->STRING() != nullptr) {
         auto string = ctx->STRING()->getText();
         string      = string.substr(1, string.size() - 2);
@@ -305,7 +334,6 @@ Value get_value(IIC3413DBParser::ConstantContext* ctx) {
         throw NotImplementedException("Unhandled Constant: " + ctx->getText());
     }
 }
-
 
 std::any QueryPreprocessor::visitColumnOrConstant(IIC3413DBParser::ColumnOrConstantContext* ctx) {
     if (ctx->column()) {

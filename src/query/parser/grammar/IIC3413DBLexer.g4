@@ -13,6 +13,7 @@ INSERT:   I N S E R T;
 INTO:     I N T O;
 INT:      I N T;
 LIKE:     L I K E;
+BETWEEN:  B E T W E E N;
 LIMIT:    L I M I T;
 OR:       O R;
 SELECT:   S E L E C T;

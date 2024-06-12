@@ -31,7 +31,7 @@ int main() {
     HeapFile* table1 = catalog.get_table(table1_name, &existing_table_schema);
     if (table1 == nullptr) { // table doesn't exist
         table1 = catalog.create_table(table1_name, table1_schema);
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 500; i++) {
             catalog.insert_record(table1_name, {"test_record_A" + std::to_string(i), i});
             catalog.insert_record(table1_name, {"test_record_B" + std::to_string(i), 10*i});
         }

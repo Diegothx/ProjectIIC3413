@@ -22,6 +22,7 @@ public:
     std::unique_ptr<Expr> current_expr;
 
     void visit(ExprPlanLike&) override;
+    void visit(ExprPlanBetween&) override;
 
     void visit(ExprPlanColumn&) override;
     void visit(ExprPlanTerm&) override;

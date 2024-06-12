@@ -316,3 +316,14 @@ void ExprOptimizer::visit(ExprPlanLike& e) {
         std::move(e.pattern)
     );
 }
+
+
+void ExprOptimizer::visit(ExprPlanBetween& e) {
+    e.column->accept_visitor(*this);
+
+    current_expr = std::make_unique<ExprBetween>(
+        std::move(current_expr),
+        std::move(e.low),
+        std::move(e.high)
+    );
+}
