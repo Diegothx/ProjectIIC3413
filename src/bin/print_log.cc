@@ -45,6 +45,7 @@ int main(int argc, char* argv[]) {
 
     char* buffer = new char[Page::SIZE];
 
+
     log_file.read(buffer, 1);
     while (log_file.good()) {
         std::cout << "<";
