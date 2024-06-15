@@ -26,7 +26,7 @@ struct UndoChanges {
     uint32_t page_num;
     uint32_t offset;
     uint32_t length;
-    std::vector<char> old_data;
+    char* old_data;
 };
 
 int main(int argc, char* argv[]) {
@@ -91,10 +91,9 @@ int main(int argc, char* argv[]) {
                 auto  offset = read_uint32(log_file);
                 auto  len = read_uint32(log_file);
 
-                std::vector<char> old_data(len);
-                log_file.read(old_data.data(), len);
+                log_file.read(buffer, len);
 
-                pending_to_undo[tid].push_back({tid, table_id, page_num, offset, len, old_data});
+                pending_to_undo[tid].push_back({tid, table_id, page_num, offset, len, buffer});
                 break;
             }
             case LogType::START_CHKP: {
@@ -108,6 +107,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
         }
+        log_file.read(buffer, 1);
     }
     delete[] buffer;
 
