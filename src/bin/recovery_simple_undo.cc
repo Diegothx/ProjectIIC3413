@@ -63,7 +63,6 @@ int main(int argc, char* argv[]) {
         ->required();
 
     CLI11_PARSE(app, argc, argv);
-    auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
 
     std::fstream log_file(log_path, std::ios::binary|std::ios::in);
 
@@ -120,7 +119,10 @@ int main(int argc, char* argv[]) {
         }
         log_file.read(buffer, 1);
     }
+
     delete[] buffer;
+    log_file.close();
+    auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
 
      for (auto& [tid, undo] : pending_to_undo) {
         FileId file_id = catalog.get_file_id(undo.table_id);

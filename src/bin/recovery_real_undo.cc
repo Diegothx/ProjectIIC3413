@@ -1,6 +1,8 @@
+
 #include <fstream>
 #include <iostream>
 
+#include <vector>
 #include "relational_model/system.h"
 #include "third_party/cli11/CLI11.hpp"
 
@@ -20,14 +22,24 @@ uint32_t read_uint32(std::fstream& log_file) {
     return res;
 }
 
-struct UndoChanges {
-    uint32_t transaction_id;
+struct TransactionData {
     uint32_t table_id;
     uint32_t page_num;
     uint32_t offset;
-    uint32_t length;
-    char* old_data;
+    uint32_t len;
+    std::unique_ptr<char[]> old_data;
 };
+
+struct UndoTransactionChanges {
+    int tid;
+    TransactionData transaction_data;
+};
+
+
+void deleteTransactionsWithId(std::vector<UndoTransactionChanges>& touples, int idToDelete) {
+    touples.erase(std::remove_if(touples.begin(), touples.end(),[idToDelete](const UndoTransactionChanges& tup) { return tup.tid == idToDelete; }),touples.end());
+}
+
 
 int main(int argc, char* argv[]) {
     std::string log_path;
@@ -58,66 +70,84 @@ int main(int argc, char* argv[]) {
         std::cerr << "Could not open the log at path: " << log_path << "\n";
         return EXIT_FAILURE;
     }
-
-    auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
-    /*buffer_mgr
-    FileManager& file_mgr      = reinterpret_cast<FileManager&>(file_mgr_buf);
-    LogManager& log_mgr        = reinterpret_cast<LogManager&>(log_mgr_buf);
-    Catalog& catalog */
     char* buffer = new char[Page::SIZE];
-    log_file.read(buffer, 1);
 
-    std::unordered_map<uint32_t, std::vector<UndoChanges>> pending_to_undo;
+    // Check if the file is empty
+    log_file.seekg(0, std::ios::end);
+    if (log_file.tellg() == 0) {
+        std::cerr << "Log file is empty.\n";
+        return EXIT_FAILURE;
+    }
+    log_file.seekg(0, std::ios::beg);
+
+    log_file.read(buffer, 1);
+    std::vector<UndoTransactionChanges> pending_to_undo;
+    uint64_t start_position = 0;
+    uint64_t log_cut = 0;
+
     while (log_file.good()) {
         LogType log_type = static_cast<LogType>(buffer[0]);
         switch (log_type) {
             case LogType::START: {
+                read_uint32(log_file);
                 break;
             }
-            case LogType::COMMIT: {
-                auto tid = read_uint32(log_file);
-                pending_to_undo.erase(tid);
+            case LogType::COMMIT:
+            case LogType::ABORT:
+                {
+                    auto tid = read_uint32(log_file);
+                    deleteTransactionsWithId(pending_to_undo, tid);
+                }
                 break;
-            }
-            case LogType::ABORT: {
-                auto tid = read_uint32(log_file);
-                pending_to_undo.erase(tid);
-                break;
-            }
             case LogType::WRITE_U: {
-                auto  tid = read_uint32(log_file);
+                int  tid = read_uint32(log_file);
                 auto  table_id = read_uint32(log_file);
                 auto  page_num = read_uint32(log_file);
                 auto  offset = read_uint32(log_file);
                 auto  len = read_uint32(log_file);
 
-                log_file.read(buffer, len);
-
-                pending_to_undo[tid].push_back({tid, table_id, page_num, offset, len, buffer});
+                auto old_data = std::make_unique<char[]>(len);
+                log_file.read(old_data.get(), len);
+                pending_to_undo.insert(pending_to_undo.begin(), {tid, {table_id, page_num, offset, len, std::move(old_data)}});
                 break;
             }
             case LogType::START_CHKP: {
+                auto n = read_uint32(log_file);
+                for (size_t i = 0; i < n; i++) {
+                    read_uint32(log_file);
+                }
+                start_position = log_file.tellg();
                 break;
             }
             case LogType::END_CHKP: {
+                log_cut = start_position;
                 break;
             }
             default: {
-                std::cerr << "Unknown log type: " << static_cast<int>(log_type) << "\n";
+                std::cout << "Unknown log type: " << static_cast<int>(log_type) << "\n";
                 break;
             }
         }
         log_file.read(buffer, 1);
     }
+
     delete[] buffer;
+    auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
 
-    for (const auto& [tid, undos] : pending_to_undo) {
-        for (const auto& undo : undos) {
-            FileId file_id = catalog.get_file_id(undo.table_id);
-            Page &page = buffer_mgr.get_page(file_id, undo.page_num);
-
-            page.data()[undo.offset] = undo.old_data[0];
-            page.make_dirty();
-        }
+    for (auto& [tid, undo] : pending_to_undo) {
+        FileId file_id = catalog.get_file_id(undo.table_id);
+        Page &page = buffer_mgr.get_page(file_id, undo.page_num);
+        page.data()[undo.offset] = std::move(undo.old_data[0]);
+        page.make_dirty();
+        page.unpin();
     }
+
+    log_file.seekp(log_cut, std::ios::beg);
+    std::vector<char> buffer_file((std::istreambuf_iterator<char>(log_file)), std::istreambuf_iterator<char>());
+
+    log_file.clear();
+    log_file.seekp(0, std::ios::beg);
+    log_file.write(buffer_file.data(), buffer_file.size());
+
+    log_file.close();
 }
