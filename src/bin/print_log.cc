@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
             std::cout << std::hex;
             log_file.read(buffer, len);
             for (size_t i = 0; i < len; i++) {
-                std::cout << std::setw(2) << std::setfill('0') << (unsigned int) buffer[i];
+                std::cout << std::setw(2) << std::setfill('0') << (int) static_cast<uint8_t>(buffer[i]);
             }
 
             std::cout << ',';
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
             std::cout << "0x";
             log_file.read(buffer, len);
             for (size_t i = 0; i < len; i++) {
-                std::cout << std::setw(2) << std::setfill('0') << (unsigned int)buffer[i];
+                std::cout << std::setw(2) << std::setfill('0') << (int) static_cast<uint8_t>(buffer[i]);
             }
             std::cout << std::dec;
 
@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
             log_file.read(buffer, len);
             std::cout << "0x";
             for (size_t i = 0; i < len; i++) {
-                std::cout << std::setw(2) << std::setfill('0') << (unsigned int) buffer[i];
+                std::cout << std::setw(2) << std::setfill('0') << (int) static_cast<uint8_t>(buffer[i]);
             }
 
             std::cout << std::dec;
