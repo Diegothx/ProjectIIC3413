@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
 
     delete[] buffer;
     auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
-    
+
     for (const auto& tid : incomplete_transactions) {
         std::cout << "Transaction " << tid << " is incomplete\n";
         if (active_transactions.find(tid) != active_transactions.end()) {
