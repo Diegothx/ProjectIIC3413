@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "UNDO: " << tid << " " << undo.table_id << " " << undo.page_num << " " << undo.offset << " " << undo.len << "\n";
                 FileId file_id = catalog.get_file_id(undo.table_id);
                 Page &page = buffer_mgr.get_page(file_id, undo.page_num);
-                page.data()[undo.offset] = std::move(undo.old_data[0]);
+                std::memcpy(page.data() + undo.offset, undo.old_data.get(), undo.len);
                 page.make_dirty();
                 page.unpin();
                 active_transactions[tid].pop_back();
@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "REDO: " << tid << " " << redo.table_id << " " << redo.page_num << " " << redo.offset << " " << redo.len << "\n";
                 FileId file_id = catalog.get_file_id(redo.table_id);
                 Page &page = buffer_mgr.get_page(file_id, redo.page_num);
-                page.data()[redo.offset] = std::move(redo.new_data[0]);
+                std::memcpy(page.data() + redo.offset, redo.old_data.get(), redo.len);
                 page.make_dirty();
                 page.unpin();
                 active_transactions[tid].pop_front();
