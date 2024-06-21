@@ -5,20 +5,10 @@
             "name": "Test Example",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/tests/test_t3",
+            "program": "${workspaceFolder}/build/Debug/bin/recovery_undo_redo",
             "args": [
-            ],
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Debug Build"
-        },
-        {
-            "name": "Query",
-            "type": "lldb",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/bin/execute_query",
-            "args": [
-                "data/test_example",
-                "data/queries/1.sql"
+                "./examples/test_p3_undoredo",
+                "./examples/test_p3_undoredo/IIC3413log.cr"
             ],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Debug Build"

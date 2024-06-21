@@ -36,16 +36,21 @@ struct TransactionData {
     std::unique_ptr<char[]> new_data;
 };
 
-std::unordered_map<uint32_t, std::deque<TransactionData>> active_transactions;
-std::list<uint32_t> committed_transactions;
-std::list<uint32_t> incomplete_transactions;
 
 int main(int argc, char* argv[]) {
     std::string log_path;
 
+    std::string db_directory;
+
     CLI::App app{"IIC 3413 DB"};
     app.get_formatter()->column_width(35);
     app.option_defaults()->always_capture_default();
+
+    app.add_option("database", db_directory)
+        ->description("Database directory")
+        ->type_name("<path>")
+        ->check(CLI::ExistingDirectory.description(""))
+        ->required();
 
     app.add_option("log file", log_path)
         ->description("Log file")
@@ -65,72 +70,73 @@ int main(int argc, char* argv[]) {
     char* buffer = new char[Page::SIZE];
 
     log_file.read(buffer, 1);
+    std::unordered_map<uint32_t, std::deque<TransactionData>> active_transactions;
+    std::list<uint32_t> committed_transactions;
+    std::list<uint32_t> incomplete_transactions;
     while (log_file.good()) {
-        std::cout << "<";
-
         LogType log_type = static_cast<LogType>(buffer[0]);
         switch (log_type) {
-        case LogType::START: {
-            auto tid = read_uint32(log_file);
-            active_transactions[tid] = std::deque<TransactionData>();
-            incomplete_transactions.push_back(tid);
-            std::cout << "START," << tid;
-            break;
-        }
-        case LogType::COMMIT: {
-            auto tid = read_uint32(log_file);
-            incomplete_transactions.remove(tid);
-            committed_transactions.push_back(tid);
-            break;
-        }
-        case LogType::ABORT: {
-            auto tid = read_uint32(log_file);
-            active_transactions.erase(tid);
-            incomplete_transactions.remove(tid);
-            committed_transactions.remove(tid);
-            break;
-        }
-        case LogType::END: {
-            auto tid = read_uint32(log_file);
-            active_transactions.erase(tid);
-            incomplete_transactions.remove(tid);
-            committed_transactions.remove(tid);
-            break;
-        }
-        case LogType::WRITE_UR: {
-            auto tid = read_uint32(log_file);
-            auto table_id = read_uint32(log_file);
-            auto page_num = read_uint32(log_file);
-            auto offset = read_uint32(log_file);
-            auto len = read_uint32(log_file);
+            case LogType::START: {
+                auto tid = read_uint32(log_file);
+                incomplete_transactions.push_back(tid);
+                break;
+            }
+            case LogType::COMMIT: {
+                auto tid = read_uint32(log_file);
+                incomplete_transactions.remove(tid);
+                committed_transactions.push_back(tid);
+                break;
+            }
+            case LogType::ABORT: {
+                auto tid = read_uint32(log_file);
+                active_transactions.erase(tid);
+                incomplete_transactions.remove(tid);
+                committed_transactions.remove(tid);
+                break;
+            }
+            case LogType::END: {
+                auto tid = read_uint32(log_file);
+                active_transactions.erase(tid);
+                incomplete_transactions.remove(tid);
+                committed_transactions.remove(tid);
+                break;
+            }
+            case LogType::WRITE_UR: {
+                auto tid = read_uint32(log_file);
+                auto table_id = read_uint32(log_file);
+                auto page_num = read_uint32(log_file);
+                auto offset = read_uint32(log_file);
+                auto len = read_uint32(log_file);
 
-            auto old_data = std::make_unique<char[]>(len);
-            log_file.read(old_data.get(), len);
+                auto old_data = std::make_unique<char[]>(len);
+                log_file.read(old_data.get(), len);
 
-            auto new_data = std::make_unique<char[]>(len);;
-            log_file.read(new_data.get(), len);
+                auto new_data = std::make_unique<char[]>(len);;
+                log_file.read(new_data.get(), len);
 
-            active_transactions[tid].push_back({table_id, page_num, offset, len, std::move(old_data), std::move(new_data)});
-            incomplete_transactions.push_back(tid);
-            break;
+                active_transactions[tid].push_back({table_id, page_num, offset, len, std::move(old_data), std::move(new_data)});
+                break;
+            }
+            default: {
+                std::cout << "Unknown log type: " << static_cast<int>(log_type) << "\n";
+                break;
+            }
         }
-        default: {
-            std::cout << "Unknown log type: " << static_cast<int>(log_type) << "\n";
-            break;
-        }
-        }
+        log_file.read(buffer, 1);
     }
 
     delete[] buffer;
-
+    auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
+    
     for (const auto& tid : incomplete_transactions) {
+        std::cout << "Transaction " << tid << " is incomplete\n";
         if (active_transactions.find(tid) != active_transactions.end()) {
             while (!active_transactions[tid].empty()) {
-                auto& transaction = active_transactions[tid].back();
-                std::cout << "UNDO: " << tid << " " << transaction.table_id << " " << transaction.page_num << " " << transaction.offset << " " << transaction.len << "\n";
-                FileId file_id = catalog.get_file_id(transaction.table_id);
-                Page &page = buffer_mgr.get_page(file_id, transaction.page_num);
-                std::copy(transaction.old_data.get(), transaction.old_data.get() + transaction.len, page.data() + transaction.offset);
+                auto& undo = active_transactions[tid].back();
+                std::cout << "UNDO: " << tid << " " << undo.table_id << " " << undo.page_num << " " << undo.offset << " " << undo.len << "\n";
+                FileId file_id = catalog.get_file_id(undo.table_id);
+                Page &page = buffer_mgr.get_page(file_id, undo.page_num);
+                page.data()[undo.offset] = std::move(undo.old_data[0]);
                 page.make_dirty();
                 page.unpin();
                 active_transactions[tid].pop_back();
@@ -139,13 +145,14 @@ int main(int argc, char* argv[]) {
     }
 
     for (const auto& tid : committed_transactions) {
+        std::cout << "Transaction " << tid << " is committed\n";
         if (active_transactions.find(tid) != active_transactions.end()) {
             while (!active_transactions[tid].empty()) {
-                auto& transaction = active_transactions[tid].front();
-                std::cout << "REDO: " << tid << " " << transaction.table_id << " " << transaction.page_num << " " << transaction.offset << " " << transaction.len << "\n";
-                FileId file_id = catalog.get_file_id(transaction.table_id);
-                Page &page = buffer_mgr.get_page(file_id, transaction.page_num);
-                std::copy(transaction.new_data.get(), transaction.new_data.get() + transaction.len, page.data() + transaction.offset);
+                auto& redo = active_transactions[tid].front();
+                std::cout << "REDO: " << tid << " " << redo.table_id << " " << redo.page_num << " " << redo.offset << " " << redo.len << "\n";
+                FileId file_id = catalog.get_file_id(redo.table_id);
+                Page &page = buffer_mgr.get_page(file_id, redo.page_num);
+                page.data()[redo.offset] = std::move(redo.new_data[0]);
                 page.make_dirty();
                 page.unpin();
                 active_transactions[tid].pop_front();
@@ -153,3 +160,5 @@ int main(int argc, char* argv[]) {
         }
     }
 }
+
+//<WRITE-UR,3,2,0,128,4,0x180d0000,0xffffffff>
