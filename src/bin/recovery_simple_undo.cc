@@ -125,6 +125,7 @@ int main(int argc, char* argv[]) {
     auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
 
      for (auto& [tid, undo] : pending_to_undo) {
+        std::cout << "Undoing Write-U," << tid << "," << undo.table_id << "," << undo.page_num << "," << undo.offset << "," << undo.len << "\n";
         FileId file_id = catalog.get_file_id(undo.table_id);
         Page &page = buffer_mgr.get_page(file_id, undo.page_num);
         page.data()[undo.offset] = std::move(undo.old_data[0]);

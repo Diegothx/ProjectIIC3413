@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
 
     CLI11_PARSE(app, argc, argv);
 
-    std::fstream log_file(log_path, std::ios::binary|std::ios::in);
+    std::fstream log_file(log_path, std::ios::binary |std::ios::in|std::ios::out);
 
     if (log_file.fail()) {
         std::cerr << "Could not open the log at path: " << log_path << "\n";
@@ -112,11 +112,11 @@ int main(int argc, char* argv[]) {
                 break;
             }
             case LogType::START_CHKP: {
+                start_position = log_file.tellg() - std::streampos(1);
                 auto n = read_uint32(log_file);
                 for (size_t i = 0; i < n; i++) {
                     read_uint32(log_file);
                 }
-                start_position = log_file.tellg();
                 break;
             }
             case LogType::END_CHKP: {
@@ -135,19 +135,22 @@ int main(int argc, char* argv[]) {
     auto system = System::init(db_directory, BufferManager::DEFAULT_BUFFER_SIZE);
 
     for (auto& [tid, undo] : pending_to_undo) {
+        std::cout << "Undoing Write-U," << tid << "," << undo.table_id << "," << undo.page_num << "," << undo.offset << "," << undo.len << "\n";
         FileId file_id = catalog.get_file_id(undo.table_id);
         Page &page = buffer_mgr.get_page(file_id, undo.page_num);
         page.data()[undo.offset] = std::move(undo.old_data[0]);
         page.make_dirty();
         page.unpin();
     }
-
+    std::cout << "Undo completed cutting log file at position: " << log_cut << "\n";
+    log_file.clear();
     log_file.seekp(log_cut, std::ios::beg);
     std::vector<char> buffer_file((std::istreambuf_iterator<char>(log_file)), std::istreambuf_iterator<char>());
-
-    log_file.clear();
-    log_file.seekp(0, std::ios::beg);
-    log_file.write(buffer_file.data(), buffer_file.size());
+    log_file.close();
+    
+    std::ofstream truncate_file(log_path, std::ios::binary | std::ios::out | std::ios::trunc);
+    truncate_file.write(buffer_file.data(), buffer_file.size());
+    truncate_file.close();
 
     log_file.close();
 }
